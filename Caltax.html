@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Caltax by V Gud</title>
+  <style>
+    :root{
+      --bg:#f6f8fb;
+      --panel:#ffffff;
+      --accent2:#2563eb;
+      --muted:#6b7280;
+      font-family:Inter, system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }
+    body{
+      margin:0; background:linear-gradient(180deg,#f8fafc 0%, #f1f5f9 100%); color:#0f172a; display:flex; align-items:center; justify-content:center; padding:28px;
+    }
+    .card{
+      width:760px; max-width:96%; border-radius:12px; padding:22px; background:var(--panel); border:1px solid rgba(37,99,235,0.06);
+      box-shadow: 0 8px 30px rgba(15,23,42,0.06);
+    }
+    h1{margin:0 0 6px; font-size:20px; color:var(--accent2);}
+    .muted{color:var(--muted)}
+    .grid{display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-top:12px}
+    label{display:block; font-size:13px; color:#334155; margin-bottom:6px}
+    input[type=number], select{width:100%; padding:12px; border-radius:8px; border:1px solid #e6eef6; background:#fff; color:#0f172a; font-size:14px}
+    .results{margin-top:16px; padding:14px; border-radius:10px; background:#ffffff; border:1px solid rgba(37,99,235,0.04)}
+    table{width:100%; border-collapse:collapse; font-size:14px}
+    th,td{padding:10px 8px; text-align:left; vertical-align:middle}
+    thead th{color:var(--accent2); font-weight:700; text-align:right}{color:var(--accent2); font-weight:700}
+    td + td{text-align:right}
+    tr + tr td{border-top:1px dashed rgba(15,23,42,0.04)}
+    .label-small{font-size:12px; color:var(--muted)}
+    .big{font-weight:700; color:var(--accent2); font-size:16px}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>V Gud GST Calculator</h1>
+    <p class="muted label-small">Base price = Discounted price / (1 + GST/100). Calculates discount, GST split, and totals.</p>
+
+    <div class="grid">
+      <div>
+        <label for="mrp">MRP (₹)</label>
+        <input id="mrp" type="number" min="0" step="0.01" value="100" />
+      </div>
+      <div>
+        <label for="discount">Discount (%)</label>
+        <input id="discount" type="number" min="0" step="0.01" value="10" />
+      </div>
+      <div>
+        <label for="gst">GST (%)</label>
+        <select id="gst">
+          <option value="0">0</option>
+          <option value="5">5</option>
+          <option value="18" selected>18</option>
+          <option value="40">40</option>
+        </select>
+      </div>
+      <div>
+        <label for="qty">Quantity</label>
+        <input id="qty" type="number" min="0" step="1" value="1" />
+      </div>
+    </div>
+
+    <div class="results" id="results">
+      <table>
+        <thead>
+          <tr><th style="text-align:left">Item</th><th class="label-small">Per unit</th><th class="label-small">For quantity</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>MRP</td><td>₹ <span id="r_mrp">0.00</span></td><td>₹ <span id="t_mrp">0.00</span></td></tr>
+          <tr><td>Discount (%)</td><td><span id="r_disc_pct">0.00%</span></td><td><span id="t_disc_pct">0.00%</span></td></tr>
+          <tr><td>Discounted Price</td><td class="big">₹ <span id="r_disc_price">0.00</span></td><td class="big">₹ <span id="t_disc_price">0.00</span></td></tr>
+          <tr><td>Base price (before GST)</td><td>₹ <span id="r_base_price">0.00</span></td><td>₹ <span id="t_base_price">0.00</span></td></tr>
+          <tr><td>CGST (@ half of GST)</td><td>₹ <span id="r_cgst">0.00</span></td><td>₹ <span id="t_cgst">0.00</span></td></tr>
+          <tr><td>SGST (@ half of GST)</td><td>₹ <span id="r_sgst">0.00</span></td><td>₹ <span id="t_sgst">0.00</span></td></tr>
+          <tr><td>Total Tax (CGST+SGST)</td><td>₹ <span id="r_tax_total">0.00</span></td><td>₹ <span id="t_tax_total">0.00</span></td></tr>
+          <tr><td><strong>Final Price (incl. GST)</strong></td><td class="big">₹ <span id="r_final">0.00</span></td><td class="big">₹ <span id="t_final">0.00</span></td></tr>
+        </tbody>
+      </table>
+      <div style="margin-top:12px; display:flex; align-items:center; gap:10px">
+        <div style="margin-left:auto; color:var(--muted); font-size:13px">Last calc: <span id="lastcalc">-</span></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const $ = id => document.getElementById(id);
+    const fmt = n => Number.isFinite(n) ? n.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2}) : '0.00';
+    const toNum = v => { const n = parseFloat(String(v).replace(/,/g,'')); return Number.isFinite(n)? n:0; };
+
+    function calculate(){
+      const mrp = toNum($('mrp').value);
+      const discPct = toNum($('discount').value);
+      const gst = toNum($('gst').value);
+      const qtyRaw = toNum($('qty').value);
+      const qty = (qtyRaw<0)?0:Math.floor(qtyRaw);
+
+      const discountAmount = (mrp * discPct) / 100;
+      const discPrice = mrp - discountAmount;
+      const basePrice = +(discPrice / (1 + gst / 100));
+
+      const cgstPct = gst / 2;
+      const sgstPct = gst / 2;
+
+      const cgstPer = +(basePrice * cgstPct / 100);
+      const sgstPer = +(basePrice * sgstPct / 100);
+      const taxTotalPer = cgstPer + sgstPer;
+      const finalPer = discPrice;
+
+      const totalMrp = mrp * qty;
+      const totalDisc = discPrice * qty;
+      const totalBase = basePrice * qty;
+      const totalCgst = cgstPer * qty;
+      const totalSgst = sgstPer * qty;
+      const totalTax = taxTotalPer * qty;
+      const totalFinal = finalPer * qty;
+
+      $('r_mrp').textContent = fmt(mrp);
+      $('t_mrp').textContent = fmt(totalMrp);
+      $('r_disc_pct').textContent = fmt(discPct) + '%';
+      $('t_disc_pct').textContent = fmt(discPct) + '%';
+      $('r_disc_price').textContent = fmt(discPrice);
+      $('t_disc_price').textContent = fmt(totalDisc);
+      $('r_base_price').textContent = fmt(basePrice);
+      $('t_base_price').textContent = fmt(totalBase);
+      $('r_cgst').textContent = fmt(cgstPer);
+      $('t_cgst').textContent = fmt(totalCgst);
+      $('r_sgst').textContent = fmt(sgstPer);
+      $('t_sgst').textContent = fmt(totalSgst);
+      $('r_tax_total').textContent = fmt(taxTotalPer);
+      $('t_tax_total').textContent = fmt(totalTax);
+      $('r_final').textContent = fmt(finalPer);
+      $('t_final').textContent = fmt(totalFinal);
+      $('lastcalc').textContent = new Date().toLocaleString();
+    }
+
+    ['mrp','discount','gst','qty'].forEach(id=>{ const el = $(id); if(el) el.addEventListener('input', calculate); });
+    calculate();
+  });
+</script>
+</body>
+</html>
